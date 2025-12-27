@@ -6,6 +6,24 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = []
 
+[build-system]
+requires = ["setuptools>=65.5", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = [
+    "nonebot_plugin_easy_translate",
+    "nonebot_plugin_easy_translate.*",
+    "nonebot_plugin_eop_ai",
+    "nonebot_plugin_eop_ai.*",
+    "nonebot_plugin_mc_server_status",
+    "nonebot_plugin_mc_server_status.*",
+    "nonebot_plugin_nya_cook_menu",
+    "nonebot_plugin_nya_cook_menu.*",
+    "nonebot_plugin_setu_customization",
+    "nonebot_plugin_setu_customization.*",
+]
+
 [tool.uv.workspace]
 members = [
     "nonebot_plugin_easy_translate",
