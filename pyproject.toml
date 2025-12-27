@@ -9,4 +9,8 @@ dependencies = []
 [tool.uv.workspace]
 members = [
     "nonebot_plugin_easy_translate",
+    "nonebot_plugin_eop_ai",
+    "nonebot_plugin_mc_server_status",
+    "nonebot_plugin_nya_cook_menu",
+    "nonebot_plugin_setu_customization",
 ]
