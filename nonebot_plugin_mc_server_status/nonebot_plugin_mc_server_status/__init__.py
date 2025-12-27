@@ -18,7 +18,7 @@ from nonebot.adapters.onebot.v11 import MessageSegment as MS
 from nonebot.log import logger
 from nonebot.params import RegexGroup
 from nonebot.plugin import PluginMetadata
-from nonebot_plugin_scheduler import scheduler
+from nonebot_plugin_apscheduler import scheduler
 
 from .config import Config, ServerConfig, ensure_server_state, pc, save_file, var
 
