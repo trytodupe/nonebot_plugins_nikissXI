@@ -1,10 +1,23 @@
+from dataclasses import dataclass
 from json import dump, load
 from os import makedirs, path
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 from nonebot import get_bot, get_bots, get_driver, get_plugin_config
 from nonebot.adapters import Bot
 from pydantic import BaseModel
+
+
+@dataclass
+class ServerConfig:
+    host: str
+    server_type: str
+    auto_ping: bool = False
+
+
+@dataclass
+class ServerState:
+    last_online: Optional[bool] = None
 
 
 class Config(BaseModel):
@@ -14,13 +27,19 @@ class Config(BaseModel):
     mc_status_bot_qqnum_list: List[str] = []  # 可选
     # 数据文件名
     mc_status_data_filename: str = "mc_status_data.json"
+    # 自动轮询的间隔（秒）
+    mc_status_auto_ping_interval: int = 300
 
 
 class Var:
     # 处理消息的bot
     handle_bot: Optional[Bot] = None
-    # {"123456": {"提肛": ["mc.hypixel.net:25565","java"]}}
-    group_list = {}
+    #  {"123456": {"提肛": ServerConfig(...)}}
+    group_list: Dict[int, Dict[str, ServerConfig]] = {}
+    # 运行时的状态，方便自动通知
+    server_states: Dict[int, Dict[str, ServerState]] = {}
+    data_loaded: bool = False
+    auto_ping_task = None
 
 
 driver = get_driver()
@@ -37,18 +56,67 @@ async def on_startup():
         save_file()
     else:
         load_file()
+    var.data_loaded = True
 
 
 def load_file():
+    var.group_list = {}
+    var.server_states = {}
     with open(f"data/{pc.mc_status_data_filename}", "r", encoding="utf-8") as r:
         tmp_data = load(r)
-        for i in tmp_data:
-            var.group_list[int(i)] = tmp_data[i]
+        needs_save = False
+        for group_key, servers in tmp_data.items():
+            try:
+                group_id = int(group_key)
+            except (TypeError, ValueError):
+                continue
+            var.group_list[group_id] = {}
+            var.server_states[group_id] = {}
+            for name, raw in servers.items():
+                host: Optional[str] = None
+                server_type: Optional[str] = None
+                auto_ping = False
+                if isinstance(raw, list) and len(raw) >= 2:
+                    host, server_type = raw[0], raw[1]
+                    needs_save = True
+                elif isinstance(raw, dict):
+                    host = raw.get("host")
+                    server_type = raw.get("type")
+                    auto_ping = bool(raw.get("auto_ping", False))
+                if not host or not server_type:
+                    continue
+                var.group_list[group_id][name] = ServerConfig(
+                    host=host,
+                    server_type=server_type,
+                    auto_ping=auto_ping,
+                )
+                var.server_states[group_id][name] = ServerState()
+        if needs_save:
+            save_file()
 
 
 def save_file():
+    payload = {}
+    for group_id, servers in var.group_list.items():
+        payload[str(group_id)] = {}
+        for name, info in servers.items():
+            payload[str(group_id)][name] = {
+                "host": info.host,
+                "type": info.server_type,
+                "auto_ping": info.auto_ping,
+            }
     with open(f"data/{pc.mc_status_data_filename}", "w", encoding="utf-8") as w:
-        dump(var.group_list, w, indent=4, ensure_ascii=False)
+        dump(payload, w, indent=4, ensure_ascii=False)
+
+
+def ensure_server_state(group_id: int, server_name: str) -> ServerState:
+    if group_id not in var.server_states:
+        var.server_states[group_id] = {}
+    state = var.server_states[group_id].get(server_name)
+    if state is None:
+        state = ServerState()
+        var.server_states[group_id][server_name] = state
+    return state
 
 
 # qq机器人连接时执行

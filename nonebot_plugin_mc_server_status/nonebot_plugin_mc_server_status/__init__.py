@@ -1,8 +1,10 @@
+import asyncio
 from asyncio import gather
 from base64 import b64decode
 from io import BytesIO
 from re import findall
 from typing import Union
+from dataclasses import dataclass
 
 from mcstatus import BedrockServer, JavaServer
 from nonebot import on_command, on_regex
@@ -17,7 +19,7 @@ from nonebot.log import logger
 from nonebot.params import RegexGroup
 from nonebot.plugin import PluginMetadata
 
-from .config import Config, pc, save_file, var
+from .config import Config, ServerConfig, ensure_server_state, pc, save_file, var
 
 __plugin_meta__ = PluginMetadata(
     name="MC服务器信息查询插件",
@@ -31,6 +33,7 @@ __plugin_meta__ = PluginMetadata(
 信息数据  # 查看已启用群以及服务器信息，需要加命令前缀，默认/
 添加服务器  # 字面意思
 删除服务器  # 字面意思
+设置自动轮询  # 设置某台服务器的自动轮询开关，参数：群号 名称 on/off
 """,
 )
 
@@ -50,15 +53,18 @@ add_server = on_regex(
 )
 del_server = on_regex(r"^删除服务器\s*((\d+)\s+(\S+))?", rule=admin_check)
 test_server = on_regex(r"^测试服务器\s*((\S+)\s+(\S+))?", rule=admin_check)
+auto_ping_toggle = on_regex(
+    r"^设置自动轮询\s*((\d+)\s+(\S+)\s+(on|off))?", rule=admin_check
+)
 
 
 @xinxi.handle()
 async def _(event: GroupMessageEvent):
     group = event.group_id
     task_list = []
-    for server_name in var.group_list[group]:
-        server_host = var.group_list[group][server_name][0]
-        server_type = var.group_list[group][server_name][1]
+    for server_name, server_info in var.group_list[group].items():
+        server_host = server_info.host
+        server_type = server_info.server_type
         task_list.append(
             check_mc_status(
                 server_name,
@@ -90,15 +96,17 @@ async def _(mp=RegexGroup()):
         server_type = mp[4].lower()
 
     if server_type not in ["js", "bds"]:
-        await add_server.finish("类型请填js或bds")
+        await test_server.finish("类型请填js或bds")
 
+    server_info = ServerConfig(host=server_host, server_type=server_type)
     if group not in var.group_list:
-        var.group_list[group] = {new_server_name: [server_host, server_type]}
+        var.group_list[group] = {new_server_name: server_info}
     else:
         for server_name in var.group_list[group]:
             if new_server_name == server_name:
                 await add_server.finish("有同名服务器啦！")
-        var.group_list[group][new_server_name] = [server_host, server_type]
+        var.group_list[group][new_server_name] = server_info
+    ensure_server_state(group, new_server_name)
     save_file()
     await add_server.finish("添加成功")
 
@@ -116,6 +124,7 @@ async def _(mp=RegexGroup()):
     else:
         if name in var.group_list[group]:
             var.group_list[group].pop(name)
+            var.server_states.get(group, {}).pop(name, None)
             if not var.group_list[group]:
                 var.group_list.pop(group)
             save_file()
@@ -127,11 +136,14 @@ async def _(mp=RegexGroup()):
 @list_all.handle()
 async def _():
     msg = ""
-    for group_id in var.group_list:
+    for group_id, servers in var.group_list.items():
         msg += f"群{group_id}服务器列表\n"
-        for server_name in var.group_list[group_id]:
-            server_host, server_type = var.group_list[group_id][server_name]
-            msg += f"{server_name} {server_host} {server_type}\n"
+        for server_name, server_info in servers.items():
+            auto_text = "开" if server_info.auto_ping else "关"
+            msg += (
+                f"{server_name} {server_info.host} {server_info.server_type} "
+                f"自动轮询:{auto_text}\n"
+            )
         msg += "\n"
     if not msg:
         msg = "无数据"
@@ -149,21 +161,54 @@ async def _(mp=RegexGroup()):
         server_type = mp[2].lower()
 
     if server_type not in ["js", "bds"]:
-        await add_server.finish("类型请填js或bds")
+        await test_server.finish("类型请填js或bds")
 
     msg = await check_mc_status("测试", server_host, server_type)
     await list_all.finish(msg)
 
 
+@auto_ping_toggle.handle()
+async def _(mp=RegexGroup()):
+    if not mp[0]:
+        await auto_ping_toggle.finish("设置自动轮询 [群号] [服务器名称] [on/off]")
+    group = int(mp[1])
+    server_name = mp[2]
+    action = mp[3].lower()
+
+    if group not in var.group_list or server_name not in var.group_list[group]:
+        await auto_ping_toggle.finish("找不到指定的服务器")
+
+    if action not in {"on", "off"}:
+        await auto_ping_toggle.finish("参数最后一项请填 on 或 off")
+
+    server_info = var.group_list[group][server_name]
+    server_info.auto_ping = action == "on"
+    ensure_server_state(group, server_name)
+    save_file()
+    status_text = "已开启" if server_info.auto_ping else "已关闭"
+    await auto_ping_toggle.finish(f"{status_text} {server_name} 的自动轮询")
+
+
+@dataclass
+class ServerProbeResult:
+    online: bool
+    message: Union[str, Message]
+
+
 async def check_mc_status(
     name: str, host: str, server_type: str
 ) -> Union[str, Message]:
+    result = await probe_server_status(name, host, server_type)
+    return result.message
+
+
+async def probe_server_status(
+    name: str, host: str, server_type: str
+) -> ServerProbeResult:
     try:
         if server_type == "js":
             js = await JavaServer.async_lookup(host, timeout=2)
             status = js.status()
-            # if status.description.strip():
-            #     print(f"des: {status.description}")
             version_list = findall(r"\d+\.\d+(?:\.[\dxX]+)?", status.version.name)
             if len(version_list) != 1:
                 version = f"{version_list[0]}-{version_list[-1]}"
@@ -185,7 +230,6 @@ async def check_mc_status(
 
                 if _player_list:
                     player_list = ", ".join(_player_list)
-
                 else:
                     player_list = "没返回玩家列表"
 
@@ -193,7 +237,6 @@ async def check_mc_status(
                 player_list = "没人在线"
 
             latency = round(status.latency)
-            # base64图标
             if "favicon" in status.raw:
                 aa, bb = status.raw["favicon"].split("base64,")
                 icon = MS.image(BytesIO(b64decode(bb))) + "\n"
@@ -203,7 +246,6 @@ async def check_mc_status(
                 icon
                 + f"名称：{name} 【{version}】\n在线：{online}  延迟：{latency}ms\n◤ {player_list} ◢"
             )
-
         else:
             if host.find(":") != -1:
                 host, port = host.split(":")
@@ -217,5 +259,83 @@ async def check_mc_status(
             msg = f"名称：{name} 【{version}】\n在线：{online}  延迟：{latency}ms"
     except Exception as e:
         msg = f"名称：{name} 查询失败！\n错误：{repr(e)}"
+        return ServerProbeResult(online=False, message=msg)
 
-    return msg
+    return ServerProbeResult(online=True, message=msg)
+
+
+AUTO_PING_MIN_INTERVAL = 30
+
+
+async def _wait_for_data_loaded():
+    while not var.data_loaded:
+        await asyncio.sleep(0.1)
+
+
+@driver.on_startup
+async def _start_auto_ping_loop():
+    await _wait_for_data_loaded()
+    if not var.auto_ping_task or var.auto_ping_task.done():
+        var.auto_ping_task = asyncio.create_task(auto_ping_loop())
+
+
+async def auto_ping_loop():
+    await run_auto_ping_cycle()
+    while True:
+        interval = max(pc.mc_status_auto_ping_interval, AUTO_PING_MIN_INTERVAL)
+        await asyncio.sleep(interval)
+        await run_auto_ping_cycle()
+
+
+async def run_auto_ping_cycle():
+    tasks = []
+    for group_id, servers in var.group_list.items():
+        for server_name, server_info in list(servers.items()):
+            if server_info.auto_ping:
+                tasks.append(handle_auto_ping(group_id, server_name, server_info))
+    if not tasks:
+        return
+    try:
+        await gather(*tasks)
+    except Exception:
+        logger.exception("mc status automatic ping failed")
+
+
+async def handle_auto_ping(
+    group_id: int, server_name: str, server_info: ServerConfig
+):
+    result = await probe_server_status(
+        server_name, server_info.host, server_info.server_type
+    )
+    state = ensure_server_state(group_id, server_name)
+    previous = state.last_online
+    state.last_online = result.online
+    if previous is None:
+        if result.online:
+            await send_auto_ping_notification(group_id, server_name, server_info, result)
+    elif result.online != previous:
+        await send_auto_ping_notification(group_id, server_name, server_info, result)
+
+
+async def send_auto_ping_notification(
+    group_id: int,
+    server_name: str,
+    server_info: ServerConfig,
+    result: ServerProbeResult,
+):
+    if not var.handle_bot:
+        return
+    online = result.online
+    status_text = "上线" if online else "下线"
+    icon = "🟢" if online else "🔴"
+    notification = MS.text(
+        f"{icon} MC服务器【{server_name}】({server_info.host}) {status_text}\n"
+    )
+    notification += result.message
+    try:
+        await var.handle_bot.send_group_msg(
+            group_id=group_id,
+            message=notification,
+        )
+    except Exception:
+        logger.exception("mc status notification failed to send")
