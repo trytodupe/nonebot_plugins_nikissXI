@@ -39,7 +39,6 @@ class Var:
     # 运行时的状态，方便自动通知
     server_states: Dict[int, Dict[str, ServerState]] = {}
     data_loaded: bool = False
-    auto_ping_task = None
 
 
 driver = get_driver()

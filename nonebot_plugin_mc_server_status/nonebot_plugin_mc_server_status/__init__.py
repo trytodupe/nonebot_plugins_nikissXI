@@ -18,8 +18,9 @@ from nonebot.adapters.onebot.v11 import MessageSegment as MS
 from nonebot.log import logger
 from nonebot.params import RegexGroup
 from nonebot.plugin import PluginMetadata
+from nonebot_plugin_scheduler import scheduler
 
-from .config import Config, ServerConfig, ensure_server_state, pc, save_file, var, driver
+from .config import Config, ServerConfig, ensure_server_state, pc, save_file, var
 
 __plugin_meta__ = PluginMetadata(
     name="MC服务器信息查询插件",
@@ -264,29 +265,6 @@ async def probe_server_status(
     return ServerProbeResult(online=True, message=msg)
 
 
-AUTO_PING_MIN_INTERVAL = 30
-
-
-async def _wait_for_data_loaded():
-    while not var.data_loaded:
-        await asyncio.sleep(0.1)
-
-
-@driver.on_startup
-async def _start_auto_ping_loop():
-    await _wait_for_data_loaded()
-    if not var.auto_ping_task or var.auto_ping_task.done():
-        var.auto_ping_task = asyncio.create_task(auto_ping_loop())
-
-
-async def auto_ping_loop():
-    await run_auto_ping_cycle()
-    while True:
-        interval = max(pc.mc_status_auto_ping_interval, AUTO_PING_MIN_INTERVAL)
-        await asyncio.sleep(interval)
-        await run_auto_ping_cycle()
-
-
 async def run_auto_ping_cycle():
     tasks = []
     for group_id, servers in var.group_list.items():
@@ -339,3 +317,16 @@ async def send_auto_ping_notification(
         )
     except Exception:
         logger.exception("mc status notification failed to send")
+
+
+AUTO_PING_MIN_INTERVAL = 30
+
+
+@scheduler.scheduled_job(
+    "interval",
+    seconds=max(pc.mc_status_auto_ping_interval, AUTO_PING_MIN_INTERVAL),
+)
+async def auto_ping_job():
+    if not var.data_loaded:
+        return
+    await run_auto_ping_cycle()
