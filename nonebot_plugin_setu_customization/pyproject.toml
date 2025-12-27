@@ -13,11 +13,11 @@ authors = [
     {name = "nikissXI", email = "1299577815@qq.com"},
 ]
 license = {text = "MIT"}
-urls = {
-    Homepage = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization",
-    Repository = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization",
-    Documentation = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization#README.md",
-}
+
+[project.urls]
+Homepage = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization"
+Repository = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization"
+Documentation = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization#README.md"
 
 [[tool.uv.index]]
 url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
