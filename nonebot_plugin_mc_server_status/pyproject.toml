@@ -1,21 +1,31 @@
-[tool.poetry]
+[project]
 name = "nonebot_plugin_mc_server_status"
 version = "0.4.1"
 description = "Nonebot2查询MC服务器在线信息插件"
-authors = ["nikissXI <1299577815@qq.com>"]
-license = "MIT"
 readme = "README.md"
-packages = [{include = "nonebot_plugin_mc_server_status"}]
-homepage = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_mc_server_status"
-repository = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_mc_server_status"
-documentation = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_mc_server_status#README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "mcstatus>=12.0.0",
+    "nonebot-adapter-onebot>=2.0.0",
+    "nonebot2>=2.0.0rc1",
+]
+authors = [
+    {name = "nikissXI", email = "1299577815@qq.com"},
+]
+license = {text = "MIT"}
+urls = {
+    Homepage = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_mc_server_status",
+    Repository = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_mc_server_status",
+    Documentation = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_mc_server_status#README.md",
+}
 
-[tool.poetry.dependencies]
-python = ">=3.8"
-nonebot2 = ">=2.0.0rc1"
-nonebot-adapter-onebot = ">=2.0.0"
-mcstatus = ">=12.0.0"
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
+
+[tool.setuptools.packages.find]
+include = ["nonebot_plugin_mc_server_status"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=65.5", "wheel"]
+build-backend = "setuptools.build_meta"

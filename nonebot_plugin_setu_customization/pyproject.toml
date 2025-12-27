@@ -1,25 +1,31 @@
-[tool.poetry]
+[project]
 name = "nonebot_plugin_setu_customization"
 version = "2.3.10"
 description = "Nonebot2 可动态管理API的setu(色图)插件"
-authors = ["nikissXI <1299577815@qq.com>"]
-license = "MIT"
 readme = "README.md"
-packages = [{include = "nonebot_plugin_setu_customization"}]
-homepage = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization"
-repository = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization"
-documentation = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization#README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "aiohttp>=3.10.0",
+    "nonebot-adapter-onebot>=2.0.0",
+    "nonebot2>=2.0.0rc1",
+]
+authors = [
+    {name = "nikissXI", email = "1299577815@qq.com"},
+]
+license = {text = "MIT"}
+urls = {
+    Homepage = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization",
+    Repository = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization",
+    Documentation = "https://github.com/nikissXI/nonebot_plugins/tree/main/nonebot_plugin_setu_customization#README.md",
+}
 
-[[tool.poetry.source]]
-name = "tsinghua"
-url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/"
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
 
-[tool.poetry.dependencies]
-python = ">=3.8"
-nonebot2 = ">=2.0.0rc1"
-nonebot-adapter-onebot = ">=2.0.0"
-aiohttp = ">=3.10.0"
+[tool.setuptools.packages.find]
+include = ["nonebot_plugin_setu_customization"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=65.5", "wheel"]
+build-backend = "setuptools.build_meta"
