@@ -19,7 +19,7 @@ from nonebot.log import logger
 from nonebot.params import RegexGroup
 from nonebot.plugin import PluginMetadata
 
-from .config import Config, ServerConfig, ensure_server_state, pc, save_file, var
+from .config import Config, ServerConfig, ensure_server_state, pc, save_file, var, driver
 
 __plugin_meta__ = PluginMetadata(
     name="MC服务器信息查询插件",
